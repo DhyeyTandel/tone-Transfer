@@ -1,30 +1,86 @@
-# AWS media pipeline
+🎨 AWS Media Processing Pipeline with Color Matching
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/dhyeytandel2005-3970s-projects/v0-aws-media-pipeline)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/projects/cRwqyo8RFsQ)
 
-## Overview
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
 
-## Deployment
 
-Your project is live at:
+📌 Overview
 
-**[https://vercel.com/dhyeytandel2005-3970s-projects/v0-aws-media-pipeline](https://vercel.com/dhyeytandel2005-3970s-projects/v0-aws-media-pipeline)**
+A scalable, serverless media processing pipeline built on AWS.
+It processes uploaded images, automatically matches the color & lighting of a target image to a reference image, and stores the result back in S3.
 
-## Build your app
+🔹 Built with AWS Lambda, S3, API Gateway, Python (Pillow, OpenCV, NumPy, scikit-image).
 
-Continue building your app on:
+🛠️ Architecture
+flowchart TD
+  A[User Uploads Images] -->|S3 Event| B[AWS Lambda]
+  B --> C[Color Matching (Histogram Matching)]
+  C --> D[Processed Output in S3]
+  D --> E[User Fetches via API Gateway]
 
-**[https://v0.app/chat/projects/cRwqyo8RFsQ](https://v0.app/chat/projects/cRwqyo8RFsQ)**
+🚀 Features
 
-## How It Works
+⚡ Serverless & Event-Driven – Auto triggers on S3 upload.
 
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+🎨 Color & Lighting Matching – Histogram-based adjustment.
+
+☁️ Cloud-Native – Uses AWS managed services.
+
+📈 Scalable – Handles multiple images in parallel.
+
+📂 Project Structure
+.
+├── lambda_function.py   # Core Lambda with color matching logic
+├── requirements.txt     # Python dependencies
+├── template.yaml        # (Optional) AWS SAM/CloudFormation template
+└── README.md
+
+⚡ Getting Started
+1. Clone the Repo
+git clone https://github.com/your-username/aws-media-pipeline.git
+cd aws-media-pipeline
+
+2. Install Dependencies (for local testing)
+pip install -r requirements.txt
+
+3. Deploy Lambda
+zip function.zip lambda_function.py requirements.txt
+# Upload function.zip to AWS Lambda
+
+4. Setup S3 & Triggers
+
+Create an S3 bucket.
+
+Configure an event notification to trigger Lambda on file upload.
+
+5. (Optional) API Gateway
+
+Create REST API with endpoints:
+
+POST /upload → Upload reference & target images
+
+GET /result/{id} → Fetch processed image
+
+🖼️ Example Usage (Local Test)
+from skimage.exposure import match_histograms
+from PIL import Image
+import numpy as np
+
+ref = np.array(Image.open("reference.jpg"))
+target = np.array(Image.open("target.jpg"))
+
+matched = match_histograms(target, ref, channel_axis=-1)
+Image.fromarray(matched).save("output.jpg")
+
+✅ Roadmap
+
+ Add video frame-by-frame processing
+
+ Add web UI for uploads
+
+ Batch jobs with Step Functions
+
+👨‍💻 Author
+
+Built by [Dhyey Tandel] – showcasing Cloud + AI image processing skil
