@@ -1,0 +1,166 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  tone-transfer
+  Serverless AWS image pipeline that transfers the color/lighting tone from a
+  reference image onto a source image using histogram matching.
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 120
+    MemorySize: 1024
+    # Shared environment variables for all functions
+    Environment:
+      Variables:
+        BUCKET_NAME: !Ref ImageBucket
+    Layers:
+      - !Ref DepsLayer
+  Api:
+    Cors:
+      AllowOrigin: "'*'"
+      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+      AllowMethods: "'GET,POST,PUT,OPTIONS'"
+
+# ---------------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------------
+Parameters:
+  StageName:
+    Type: String
+    Default: prod
+    Description: API Gateway deployment stage name.
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+Resources:
+
+  # ── S3 Bucket ─────────────────────────────────────────────────────────────
+  ImageBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "tone-transfer-images-${AWS::AccountId}-${AWS::Region}"
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - "*"
+            AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - PUT
+              - GET
+            MaxAge: 3000
+
+  # ── Shared IAM Role ───────────────────────────────────────────────────────
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3AccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub "arn:aws:s3:::${ImageBucket}/*"
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !GetAtt ImageBucket.Arn
+
+  # ── Lambda Layer (Python dependencies) ───────────────────────────────────
+  DepsLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: tone-transfer-deps
+      Description: Python dependencies for tone-transfer (OpenCV, scikit-image, etc.)
+      ContentUri: .layer/
+      CompatibleRuntimes:
+        - python3.11
+    Metadata:
+      BuildMethod: python3.11
+
+  # ── Tone Transfer Lambda (POST /transfer) ─────────────────────────────────
+  ToneTransferFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: tone-transfer-process
+      CodeUri: src/
+      Handler: tone_transfer.handler.lambda_handler
+      Description: >
+        Accepts source_key + reference_key, runs histogram-matching tone
+        transfer, writes the result to S3, returns the result key.
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        TransferApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ToneTransferApi
+            Path: /transfer
+            Method: POST
+
+  # ── Presign Lambda (GET /presign and GET /presign-download) ───────────────
+  PresignFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: tone-transfer-presign
+      CodeUri: src/
+      Handler: tone_transfer.presign_handler.lambda_handler
+      Description: >
+        Returns presigned S3 PUT URLs (/presign) for browser-direct upload, and
+        presigned GET URLs (/presign-download) to fetch processed results.
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        PresignUploadApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ToneTransferApi
+            Path: /presign
+            Method: GET
+        PresignDownloadApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ToneTransferApi
+            Path: /presign-download
+            Method: GET
+
+  # ── API Gateway ───────────────────────────────────────────────────────────
+  ToneTransferApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: tone-transfer-api
+      StageName: !Ref StageName
+      Description: API for the tone-transfer image pipeline.
+
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+Outputs:
+  ApiBaseUrl:
+    Description: Base URL for the deployed API Gateway stage.
+    Value: !Sub "https://${ToneTransferApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}"
+
+  ImageBucketName:
+    Description: Name of the S3 bucket for source, reference, and result images.
+    Value: !Ref ImageBucket
+
+  ToneTransferFunctionArn:
+    Description: ARN of the tone transfer Lambda function.
+    Value: !GetAtt ToneTransferFunction.Arn
+
+  PresignFunctionArn:
+    Description: ARN of the presign Lambda function.
+    Value: !GetAtt PresignFunction.Arn

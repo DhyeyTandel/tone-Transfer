@@ -1,7 +1,0 @@
-# AWS Lambda deployment requirements
-# Save this as requirements.txt when deploying to Lambda
-
-opencv-python-headless==4.8.1.78
-numpy==1.24.3
-Pillow==10.0.1
-boto3==1.28.85

@@ -1,0 +1,9 @@
+opencv-python-headless
+scikit-image
+boto3
+numpy
+pytest
+moto
+ruff
+requests
+
